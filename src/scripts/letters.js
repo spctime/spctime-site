@@ -2,8 +2,11 @@
 const stage = document.querySelector('#stage');
 const canvas = document.querySelector('#scene');
 const fallback = document.querySelector('#fallback');
-const ctx = canvas?.getContext('2d', { alpha: false });
-if (!ctx || !stage) {
+const typeCanvas = document.querySelector('#type-layer');
+const backgroundCtx = canvas?.getContext('2d', { alpha: false });
+const typeCtx = typeCanvas?.getContext('2d');
+let ctx = backgroundCtx;
+if (!backgroundCtx || !typeCtx || !stage) {
   if (fallback) fallback.style.display = 'flex';
 } else {
   const glyphs = [...'SPCTIME'];
@@ -20,8 +23,11 @@ if (!ctx || !stage) {
     const rect = stage.getBoundingClientRect();
     W = rect.width; H = rect.height;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvas.width = typeCanvas.width = Math.round(W * dpr);
+    canvas.height = typeCanvas.height = Math.round(H * dpr);
+    backgroundCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    typeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx = backgroundCtx;
     font = clamp(W / 7.4, 36, Math.min(202, H * .31));
     ctx.font = `900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
     const widths = letters.map(p => ctx.measureText(p.char).width);
@@ -29,6 +35,8 @@ if (!ctx || !stage) {
     const usable = Math.min(W*.88, wordWidth + font*.34);
     const scale = Math.min(1, usable / (wordWidth + font*.34));
     font *= scale;
+    // CSS filters soften the complete type layer even when canvas ctx.filter is unsupported.
+    typeCanvas.style.filter = `blur(${clamp(font * .038, 3.7, 7.5)}px)`;
     ctx.font = `900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
     const newWidths = letters.map(p => ctx.measureText(p.char).width);
     const total = newWidths.reduce((a,b)=>a+b,0) + (letters.length-1)*font*.045;
@@ -154,6 +162,8 @@ if (!ctx || !stage) {
     raf=requestAnimationFrame(frame);
     if(document.hidden)return;
     const dt=clamp((t-(last||t))/16.6667,.3,2);last=t;tick+=dt;
+    ctx = backgroundCtx;
+    typeCtx.clearRect(0, 0, W, H);
     const gentle = !reduced.matches;
     ctx.fillStyle='#080a0b';ctx.fillRect(0,0,W,H);
     // A quiet vignette. The letterforms do all the work.
@@ -176,6 +186,7 @@ if (!ctx || !stage) {
         if(r.life<=0)ripples.splice(i,1);
       }
     }
+    ctx = typeCtx;
     ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.font=`900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
     for(const p of letters){
