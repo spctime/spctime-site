@@ -1,5 +1,5 @@
 ---
-const title = 'space.time';
+const title = 'SPACE.TIME';
 const base = import.meta.env.BASE_URL;
 ---
 <!doctype html>
@@ -8,40 +8,43 @@ const base = import.meta.env.BASE_URL;
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#050608" />
-    <meta name="description" content="space.time" />
+    <meta name="description" content="SPACE.TIME" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="space.time" />
-    <meta property="og:description" content="space.time" />
+    <meta property="og:title" content="SPACE.TIME" />
+    <meta property="og:description" content="SPACE.TIME" />
     <meta property="og:url" content="https://spctime.ai/" />
     <meta name="color-scheme" content="dark" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@900&display=swap" rel="stylesheet" />
     <link rel="icon" href={`${base}favicon.svg`} type="image/svg+xml" />
     <link rel="canonical" href="https://spctime.ai/" />
     <title>{title}</title>
     <style is:global>
-      :root { background: #050608; color: #e9eaf0; font-family: Arial, Helvetica, sans-serif; }
+      :root { background: #050608; color: #e9eaf0; font-family: "Unbounded", Arial, sans-serif; }
       * { box-sizing: border-box; }
       html, body { width: 100%; min-height: 100%; margin: 0; overflow: hidden; }
       body { overscroll-behavior: none; }
       #stage { position: fixed; inset: 0; isolation: isolate; overflow: hidden; touch-action: none; cursor: grab; }
       #stage:active { cursor: grabbing; }
       #scene { display: block; width: 100%; height: 100%; }
-      #type-layer, #motion-type-layer { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; filter: blur(5px); }
+      #type-layer, #motion-type-layer { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; }
       .grain { position: absolute; inset: 0; pointer-events: none; opacity: .07; mix-blend-mode: screen;
         background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E"); }
       #fallback { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
-        font-size: clamp(40px, 10vw, 176px); letter-spacing: -.065em; font-weight: 900; color: #e9eaf0; filter: blur(4.6px); }
+        font-size: clamp(36px, 9vw, 180px); letter-spacing: -.03em; font-weight: 900; color: #e9eaf0; }
       .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
       @media (prefers-reduced-motion: reduce) { #stage { cursor: default; } }
     </style>
   </head>
   <body>
-    <main id="stage" aria-label="space.time, an interactive typographic experience">
+    <main id="stage" aria-label="SPACE.TIME, an interactive typographic experience">
       <canvas id="scene" aria-hidden="true"></canvas>
       <canvas id="type-layer" aria-hidden="true"></canvas>
       <canvas id="motion-type-layer" aria-hidden="true"></canvas>
       <div class="grain" aria-hidden="true"></div>
-      <h1 id="fallback">space.time</h1>
-      <p class="sr-only">space.time. Drag or tap the letters to move them. Press Space to scatter them; press Escape to reset. Animation respects your reduced motion setting.</p>
+      <h1 id="fallback">SPACE.TIME</h1>
+      <p class="sr-only">SPACE.TIME. Drag or tap the letters to move them. Press Space to scatter them; press Escape to reset. Animation respects your reduced motion setting.</p>
     </main>
     <script>
       import '../scripts/letters.js';
