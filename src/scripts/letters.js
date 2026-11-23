@@ -1,4 +1,4 @@
-/* space.time: an interactive kinetic wordmark, no external animation dependencies. */
+/* SPACE.TIME: kinetic typography and an autonomous robot dot. */
 const stage = document.querySelector('#stage');
 const canvas = document.querySelector('#scene');
 const fallback = document.querySelector('#fallback');
@@ -11,11 +11,13 @@ let ctx = backgroundCtx;
 if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
   if (fallback) fallback.style.display = 'flex';
 } else {
-  const glyphs = [...'space.time'];
+  const glyphs = [...'SPACE.TIME'];
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   const letters = glyphs.map((char, i) => ({ char, i, x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0, a: 0, va: 0, trail: [] }));
   // The full wordmark is always visible; every glyph is an independent object.
-  let motionBlur = 0, motionEnergy = 0, pointerInside = false;
+  const dotIndex = 5;
+  const robot = { x: 0, y: 0, vx: 0, vy: 0, homeX: 0, homeY: 0, targetX: 0, targetY: 0, mode: 'docked', changeAt: 0, trail: [] };
+  const fontFamily = '"Unbounded", "Arial Black", sans-serif';
   const pointer = { x: -9999, y: -9999, px: 0, py: 0, down: false, dragging: null, id: null, moved: false, t: 0 };
   const ripples = [];
   let W = 0, H = 0, font = 100, gap = 100, raf = null, last = 0, tick = 0, anomaly = 0;
@@ -33,25 +35,29 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
     typeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     motionCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx = backgroundCtx;
-    font = clamp(W / 10.2, 28, Math.min(180, H * .31));
-    ctx.font = `900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
-    const widths = letters.map(p => ctx.measureText(p.char).width);
-    const totalWidth = widths.reduce((a,b)=>a+b,0) + (letters.length-1)*font*.03 + font*.11;
-    font *= Math.min(1, (W*.89)/totalWidth);
-    const baseBlur = clamp(font*.038, 3.7, 7.5);
-    typeCanvas.style.filter = `blur(${baseBlur}px)`;
-    motionCanvas.style.filter = typeCanvas.style.filter;
-    ctx.font = `900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
-    const fittedWidths = letters.map(p => ctx.measureText(p.char).width);
-    const total = fittedWidths.reduce((a,b)=>a+b,0) + (letters.length-1)*font*.03 + font*.11;
-    let cursor=(W-total)/2;
+    // Fit a substantial display face to 94% of the width; reserve a portal for the robot dot.
+    font = clamp(W / 8.1, 36, Math.min(235, H * .38));
+    ctx.font = `900 ${font}px ${fontFamily}`;
+    let widths = letters.map(p => p.char === '.' ? font*.33 : ctx.measureText(p.char).width);
+    let total = widths.reduce((a,b)=>a+b,0) + (letters.length-1)*font*.018;
+    font *= Math.min(1, W*.94/total);
+    ctx.font = `900 ${font}px ${fontFamily}`;
+    widths = letters.map(p => p.char === '.' ? font*.33 : ctx.measureText(p.char).width);
+    total = widths.reduce((a,b)=>a+b,0) + (letters.length-1)*font*.018;
+    let cursor = (W-total)/2;
     letters.forEach((p,i)=>{
-      const width=fittedWidths[i];
-      p.tx=cursor+width/2;
+      p.tx=cursor+widths[i]/2;
       p.ty=H/2;
-      cursor+=width+font*.03+(i===5?font*.11:0);
-      if(reset || p.x === 0){p.x=p.tx;p.y=p.ty;p.vx=p.vy=p.va=p.a=0;p.trail=[];}
+      cursor+=widths[i]+font*.018;
+      if(reset || !p.x){p.x=p.tx;p.y=p.ty;p.vx=p.vy=p.va=p.a=0;p.trail=[];}
     });
+    robot.homeX = letters[dotIndex].tx;
+    robot.homeY = letters[dotIndex].ty + font*.08;
+    if(reset || !robot.x){robot.x=robot.homeX;robot.y=robot.homeY;robot.vx=robot.vy=0;robot.mode='docked';robot.changeAt=performance.now()+3500;}
+    robot.targetX=clamp(robot.targetX||robot.homeX,25,W-25);
+    robot.targetY=clamp(robot.targetY||robot.homeY,25,H-25);
+    typeCanvas.style.filter = 'none';
+    motionCanvas.style.filter = 'none';
   }
 
   const color = (a) => `rgba(209,215,231,${a})`;
@@ -59,6 +65,7 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
   function scatter(force = 1.0) {
     if (reduced.matches) return;
     letters.forEach((p,i) => {
+      if(p.char === '.') return;
       const angle = rand()*Math.PI*2;
       const speed = (5 + rand()*9)*force;
       p.vx += Math.cos(angle)*speed;
@@ -67,11 +74,18 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
     });
     ripple(W/2,H/2,force);
   }
-  function reset() { letters.forEach(p => {p.vx=p.vy=p.va=p.a=0;p.x=p.tx;p.y=p.ty;p.trail=[];});ripples.length=0; }
+  function reset() {
+    letters.forEach(p=>{p.vx=p.vy=p.va=p.a=0;p.x=p.tx;p.y=p.ty;p.trail=[];});
+    robot.x=robot.homeX;robot.y=robot.homeY;robot.vx=robot.vy=0;
+    robot.mode='docked';robot.changeAt=performance.now()+3500;robot.trail=[];
+    ripples.length=0;
+  }
   function hit(x,y) {
-    ctx.font = `900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
+    ctx.font = `900 ${font}px ${fontFamily}`;
     for (let i=letters.length-1; i>=0; i--) {
-      const p=letters[i], ww=ctx.measureText(p.char).width;
+      const p=letters[i];
+      if(p.char === '.')continue;
+      const ww=ctx.measureText(p.char).width;
       if (Math.abs(x-p.x)<ww*.65+16 && Math.abs(y-p.y)<font*.60+20) return p;
     }
     return null;
@@ -79,17 +93,20 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
   function updatePointer(e) { const b = stage.getBoundingClientRect();pointer.px=pointer.x;pointer.py=pointer.y;pointer.x=e.clientX-b.left;pointer.y=e.clientY-b.top; }
   stage.addEventListener('pointerdown',e=>{
     updatePointer(e); pointer.down=true;pointer.moved=false;pointer.t=performance.now();pointer.id=e.pointerId;
+    if(!reduced.matches && Math.hypot(pointer.x-robot.x,pointer.y-robot.y)<Math.max(25,font*.19)){
+      robot.mode='explore';robot.changeAt=performance.now()+2800;
+      robot.targetX=clamp(pointer.x+(rand()-.5)*W*.6,35,W-35);
+      robot.targetY=clamp(pointer.y+(rand()-.5)*H*.5,35,H-35);
+      robot.vx+=(rand()-.5)*8;robot.vy-=5;
+      ripple(robot.x,robot.y,.8);
+    }
     const picked=hit(pointer.x,pointer.y);
     pointer.dragging = reduced.matches ? null : picked;
     if (picked) {picked.vx=0;picked.vy=0;stage.setPointerCapture(e.pointerId);}
     else ripple(pointer.x,pointer.y,.6);
   });
   stage.addEventListener('pointermove',e=>{
-    pointerInside = true;
-    const moved = Math.hypot(e.movementX||0,e.movementY||0);
-    if (moved > 2) {
-      motionEnergy = Math.max(motionEnergy, clamp(moved/17,.2,1));
-    }
+    // Cursor motion is sensed by the robot rather than blurring the wordmark.
     if(pointer.down&&Math.hypot(e.movementX||0,e.movementY||0)>1)pointer.moved=true;
     updatePointer(e);
     if(pointer.dragging){ const p=pointer.dragging; p.vx=(pointer.x-p.x)*.28; p.vy=(pointer.y-p.y)*.28; p.x=pointer.x;p.y=pointer.y; }
@@ -107,7 +124,7 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
         ripple(p.x,p.y,.65);
       } else {p.vx+=clamp(pointer.x-pointer.px,-20,20)*.7;p.vy+=clamp(pointer.y-pointer.py,-20,20)*.7;}
     } else if (!pointer.moved && !reduced.matches) {
-      letters.forEach(q=>{const dx=q.x-pointer.x,dy=q.y-pointer.y,d=Math.max(50,Math.hypot(dx,dy)); q.vx+=dx/d*clamp(450/d,0,7);q.vy+=dy/d*clamp(450/d,0,7);});
+      letters.filter(q=>q.char!=='.').forEach(q=>{const dx=q.x-pointer.x,dy=q.y-pointer.y,d=Math.max(50,Math.hypot(dx,dy)); q.vx+=dx/d*clamp(450/d,0,7);q.vy+=dy/d*clamp(450/d,0,7);});
     }
     pointer.down=false;pointer.dragging=null;pointer.id=null;
   }
@@ -142,7 +159,10 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
         // The network belongs to the same world as the draggable letters.
         const dx=x-pointer.x, dy=y-pointer.y, distance=Math.hypot(dx,dy);
         const displacement = distance < 190 ? Math.pow(1-distance/190,2)*27 : 0;
-        line.push({x:x+(distance>1?dx/distance*displacement:0), y:y+(distance>1?dy/distance*displacement:0)});
+        const rd=Math.hypot(x-robot.x,y-robot.y);
+        const warp = rd<145 ? Math.pow(1-rd/145,2)*17 : 0;
+        line.push({x:x+(distance>1?dx/distance*displacement:0)+(rd>1?(x-robot.x)/rd*warp:0),
+                   y:y+(distance>1?dy/distance*displacement:0)+(rd>1?(y-robot.y)/rd*warp:0)});
       }
       grid.push(line);
     }
@@ -168,6 +188,73 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
     ctx.restore();
   }
 
+  function selectDestination(){
+    robot.targetX=clamp(robot.homeX+(rand()-.5)*W*.88,25,W-25);
+    robot.targetY=clamp(robot.homeY+(rand()-.5)*H*.85,25,H-25);
+  }
+  function updateRobot(t,dt){
+    if(reduced.matches){robot.x=robot.homeX;robot.y=robot.homeY;return;}
+    if(t>robot.changeAt){
+      if(robot.mode==='docked'){
+        robot.mode='explore';selectDestination();robot.changeAt=t+2600+rand()*2100;
+      }else if(robot.mode==='explore'){
+        if(rand()<.50){robot.mode='return';robot.changeAt=t+3200;}
+        else{selectDestination();robot.changeAt=t+1600+rand()*2400;}
+      }else{
+        robot.mode='docked';robot.changeAt=t+3500+rand()*4500;
+      }
+    }
+    const toMouse=Math.hypot(robot.x-pointer.x,robot.y-pointer.y);
+    let tx=robot.mode==='return'||robot.mode==='docked' ? robot.homeX : robot.targetX;
+    let ty=robot.mode==='return'||robot.mode==='docked' ? robot.homeY : robot.targetY;
+    // Curiosity from a distance, caution when a visitor gets too close.
+    if(toMouse<105 && toMouse>1){
+      tx=clamp(robot.x+(robot.x-pointer.x)/toMouse*160,20,W-20);
+      ty=clamp(robot.y+(robot.y-pointer.y)/toMouse*160,20,H-20);
+    }else if(toMouse<230 && robot.mode==='explore'){
+      tx=clamp(pointer.x+(robot.x-pointer.x)*.25,20,W-20);
+      ty=clamp(pointer.y+(robot.y-pointer.y)*.25,20,H-20);
+    }
+    const accel=robot.mode==='docked'?.020:.012;
+    robot.vx+=(tx-robot.x)*accel*dt;
+    robot.vy+=(ty-robot.y)*accel*dt;
+    robot.vx*=Math.pow(.92,dt);robot.vy*=Math.pow(.92,dt);
+    const speed=Math.hypot(robot.vx,robot.vy),limit=robot.mode==='return'?11:7;
+    if(speed>limit){robot.vx*=limit/speed;robot.vy*=limit/speed;}
+    robot.x=clamp(robot.x+robot.vx*dt,12,W-12);
+    robot.y=clamp(robot.y+robot.vy*dt,12,H-12);
+    if(robot.mode==='return' && Math.hypot(robot.x-robot.homeX,robot.y-robot.homeY)<5){
+      robot.mode='docked';robot.changeAt=t+2800+rand()*3300;
+    }
+    if(speed>.8 && tick%2<dt)robot.trail.push({x:robot.x,y:robot.y,life:.22});
+    robot.trail.forEach(p=>p.life-=.012*dt);
+    robot.trail=robot.trail.filter(p=>p.life>0).slice(-22);
+    const radius=Math.max(8,font*.085);
+    letters.forEach(p=>{
+      if(p.char==='.'||pointer.dragging===p)return;
+      const d=Math.hypot(p.x-robot.x,p.y-robot.y);
+      if(d<radius+font*.30 && d>1){
+        const force=Math.pow(1-d/(radius+font*.30),2)*.8;
+        p.vx+=(p.x-robot.x)/d*force*dt;
+        p.vy+=(p.y-robot.y)/d*force*dt;
+      }
+    });
+  }
+  function drawRobot(){
+    const r=Math.max(6,font*.068);
+    ctx=typeCtx;
+    for(const p of robot.trail){
+      ctx.fillStyle=`rgba(221,233,255,${p.life*.22})`;
+      ctx.beginPath();ctx.arc(p.x,p.y,r*.7,0,Math.PI*2);ctx.fill();
+    }
+    ctx.save();
+    const glow=ctx.createRadialGradient(robot.x,robot.y,1,robot.x,robot.y,r*3.7);
+    glow.addColorStop(0,'rgba(230,239,255,.20)');
+    glow.addColorStop(1,'rgba(230,239,255,0)');
+    ctx.fillStyle=glow;ctx.beginPath();ctx.arc(robot.x,robot.y,r*3.7,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#f2f6ff';ctx.beginPath();ctx.arc(robot.x,robot.y,r,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+  }
   function frame(t){
     raf=requestAnimationFrame(frame);
     if(document.hidden)return;
@@ -175,15 +262,6 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
     ctx = backgroundCtx;
     typeCtx.clearRect(0, 0, W, H);
     motionCtx.clearRect(0, 0, W, H);
-    const baseBlur = clamp(font * .038, 3.7, 7.5);
-    motionEnergy *= Math.pow(.94, dt);
-    const proximity = pointerInside ? Math.max(0,1-Math.min(
-      Math.hypot(pointer.x-letters[7].x,pointer.y-letters[7].y),
-      Math.hypot(pointer.x-letters[9].x,pointer.y-letters[9].y)
-    ) / (font*2.8)) : 0;
-    const targetMotionBlur = reduced.matches ? 0 : motionEnergy * (.45 + .55 * proximity);
-    motionBlur += (targetMotionBlur-motionBlur) * Math.min(1, .12*dt);
-    motionCanvas.style.filter = `blur(${(baseBlur + motionBlur * Math.min(19, font*.13)).toFixed(2)}px)`;
     const gentle = !reduced.matches;
     ctx.fillStyle='#080a0b';ctx.fillRect(0,0,W,H);
     // A quiet vignette. The letterforms do all the work.
@@ -191,6 +269,7 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
     grad.addColorStop(0,'#101116');grad.addColorStop(.54,'#090a0e');grad.addColorStop(1,'#050608');
     ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
 
+    updateRobot(t,dt);
     drawFabric(gentle ? tick * .012 : 0);
 
     if(gentle&&tick-anomaly>1450){
@@ -208,13 +287,12 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
     }
     ctx = typeCtx;
     ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.font=`900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
+    ctx.font=`900 ${font}px ${fontFamily}`;
     for(const p of letters){
-      // I and final E in TIME react to pointer movement.
-      ctx = (p.i === 7 || p.i === 9) ? motionCtx : typeCtx;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.font = `900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
+      if(p.char === '.') continue;
+      ctx = typeCtx;
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.font=`900 ${font}px ${fontFamily}`;
       if(gentle && pointer.dragging!==p){
         const dx=p.x-pointer.x,dy=p.y-pointer.y,d=Math.hypot(dx,dy);
         const radius=Math.max(110,font*1.3);
@@ -234,19 +312,14 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
       }
       if(p.trail.length>24)p.trail.splice(0,p.trail.length-24);
       ctx.save();ctx.translate(p.x,p.y);ctx.rotate(gentle?p.a:0);
-      // Blur the letterforms themselves, rather than placing sharp glyphs over a glow.
-      // Both passes stay soft: a faint atmospheric halo and a dense blurred core.
-      const softness = clamp(font * .032, 2.6, 6.4);
-      ctx.shadowBlur = 0;
-      ctx.filter = `blur(${softness * 2.8}px)`;
-      ctx.fillStyle = 'rgba(227,233,243,.24)';
+      ctx.filter='none';ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(244,246,250,.98)';
       ctx.fillText(p.char,0,0);
-      ctx.filter = `blur(${softness}px)`;
-      ctx.fillStyle = 'rgba(244,245,249,.97)';
-      ctx.fillText(p.char,0,0);
-      ctx.filter = 'none';
       ctx.restore();
     }
+    // Dot is a real moving object, not a glyph rendered in the wordmark.
+    drawRobot();
   }
+  document.fonts?.ready.then(()=>layout(true));
   layout(true);raf=requestAnimationFrame(frame);
 }
