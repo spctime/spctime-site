@@ -3,10 +3,12 @@ const stage = document.querySelector('#stage');
 const canvas = document.querySelector('#scene');
 const fallback = document.querySelector('#fallback');
 const typeCanvas = document.querySelector('#type-layer');
+const motionCanvas = document.querySelector('#motion-type-layer');
 const backgroundCtx = canvas?.getContext('2d', { alpha: false });
 const typeCtx = typeCanvas?.getContext('2d');
+const motionCtx = motionCanvas?.getContext('2d');
 let ctx = backgroundCtx;
-if (!backgroundCtx || !typeCtx || !stage) {
+if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
   if (fallback) fallback.style.display = 'flex';
 } else {
   const glyphs = [...'SPCTIME'];
@@ -19,6 +21,7 @@ if (!backgroundCtx || !typeCtx || !stage) {
   let compactPositions = [], expandedPositions = [], expandedFontScale = 1;
   let revealStart = 0, lastInteraction = performance.now(), revealAmount = 0;
   let hoverReveal = 0, lastPointerMotion = 0, pointerInside = false;
+  let motionBlur = 0, motionEnergy = 0;
   const revealDelay = 9000, revealDuration = 4700, revealCooldown = 19000;
   const ease = x => { const v = clamp(x,0,1); return v*v*(3-2*v); };
   function interruptReveal() {
@@ -48,10 +51,11 @@ if (!backgroundCtx || !typeCtx || !stage) {
     const rect = stage.getBoundingClientRect();
     W = rect.width; H = rect.height;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = typeCanvas.width = Math.round(W * dpr);
-    canvas.height = typeCanvas.height = Math.round(H * dpr);
+    canvas.width = typeCanvas.width = motionCanvas.width = Math.round(W * dpr);
+    canvas.height = typeCanvas.height = motionCanvas.height = Math.round(H * dpr);
     backgroundCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     typeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    motionCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx = backgroundCtx;
     font = clamp(W / 7.4, 36, Math.min(202, H * .31));
     ctx.font = `900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
@@ -62,6 +66,7 @@ if (!backgroundCtx || !typeCtx || !stage) {
     font *= scale;
     // CSS filters soften the complete type layer even when canvas ctx.filter is unsupported.
     typeCanvas.style.filter = `blur(${clamp(font * .038, 3.7, 7.5)}px)`;
+    motionCanvas.style.filter = typeCanvas.style.filter;
     ctx.font = `900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
     const newWidths = letters.map(p => ctx.measureText(p.char).width);
     const total = newWidths.reduce((a,b)=>a+b,0) + (letters.length-1)*font*.045;
@@ -128,6 +133,7 @@ if (!backgroundCtx || !typeCtx || !stage) {
     pointerInside = true;
     const moved = Math.hypot(e.movementX||0,e.movementY||0);
     if (moved > 2) {
+      motionEnergy = Math.max(motionEnergy, clamp(moved / 17, .2, 1));
       lastPointerMotion = performance.now();
       lastInteraction = lastPointerMotion;
       if (revealStart) interruptReveal();
@@ -216,6 +222,16 @@ if (!backgroundCtx || !typeCtx || !stage) {
     const dt=clamp((t-(last||t))/16.6667,.3,2);last=t;tick+=dt;
     ctx = backgroundCtx;
     typeCtx.clearRect(0, 0, W, H);
+    motionCtx.clearRect(0, 0, W, H);
+    const baseBlur = clamp(font * .038, 3.7, 7.5);
+    motionEnergy *= Math.pow(.94, dt);
+    const proximity = pointerInside ? Math.max(0,1-Math.min(
+      Math.hypot(pointer.x-letters[4].x,pointer.y-letters[4].y),
+      Math.hypot(pointer.x-letters[6].x,pointer.y-letters[6].y)
+    ) / (font*2.8)) : 0;
+    const targetMotionBlur = reduced.matches ? 0 : motionEnergy * (.45 + .55 * proximity);
+    motionBlur += (targetMotionBlur-motionBlur) * Math.min(1, .12*dt);
+    motionCanvas.style.filter = `blur(${(baseBlur + motionBlur * Math.min(19, font*.13)).toFixed(2)}px)`;
     const gentle = !reduced.matches;
     // A quiet, infrequent discovery: SPCTIME unfolds to SPACE TIME and returns.
     if (gentle && !pointer.down && !revealStart && t-lastInteraction>revealDelay) {
@@ -273,6 +289,12 @@ if (!backgroundCtx || !typeCtx || !stage) {
     ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.font=`900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
     for(const p of allLetters){
+      // Only the original I and terminal E in TIME gain additional softness.
+      // The new E that appears in SPACE retains the regular wordmark blur.
+      ctx = (p.i === 4 || p.i === 6) ? motionCtx : typeCtx;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = `900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
       if(gentle && pointer.dragging!==p){
         const dx=p.x-pointer.x,dy=p.y-pointer.y,d=Math.hypot(dx,dy);
         const radius=Math.max(110,font*1.3);
