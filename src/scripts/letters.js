@@ -17,7 +17,7 @@ if (!backgroundCtx || !typeCtx || !stage) {
   const allLetters = [...letters, ...hiddenLetters];
   const expandedOrder = [letters[0], letters[1], hiddenLetters[0], letters[2], hiddenLetters[1], letters[3], letters[4], letters[5], letters[6]];
   let compactPositions = [], expandedPositions = [], expandedFontScale = 1;
-  let revealStart = 0, lastInteraction = 0, revealAmount = 0;
+  let revealStart = 0, lastInteraction = performance.now(), revealAmount = 0;
   const revealDelay = 9000, revealDuration = 4700, revealCooldown = 19000;
   const ease = x => { const v = clamp(x,0,1); return v*v*(3-2*v); };
   function interruptReveal() {
@@ -210,7 +210,7 @@ if (!backgroundCtx || !typeCtx || !stage) {
     typeCtx.clearRect(0, 0, W, H);
     const gentle = !reduced.matches;
     // A quiet, infrequent discovery: SPCTIME unfolds to SPACE TIME and returns.
-    if (gentle && !pointer.down && !revealStart && t-lastInteraction>revealDelay && t>revealCooldown) {
+    if (gentle && !pointer.down && !revealStart && t-lastInteraction>revealDelay) {
       revealStart = t;
       lastInteraction = t + revealCooldown;
     }
