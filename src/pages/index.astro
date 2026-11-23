@@ -25,7 +25,7 @@ const base = import.meta.env.BASE_URL;
       #stage { position: fixed; inset: 0; isolation: isolate; overflow: hidden; touch-action: none; cursor: grab; }
       #stage:active { cursor: grabbing; }
       #scene { display: block; width: 100%; height: 100%; }
-      #type-layer { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; filter: blur(5px); }
+      #type-layer, #motion-type-layer { position: absolute; inset: 0; display: block; width: 100%; height: 100%; pointer-events: none; filter: blur(5px); }
       .grain { position: absolute; inset: 0; pointer-events: none; opacity: .07; mix-blend-mode: screen;
         background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.35'/%3E%3C/svg%3E"); }
       #fallback { position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
@@ -38,6 +38,7 @@ const base = import.meta.env.BASE_URL;
     <main id="stage" aria-label="SPCTIME, an interactive typographic experience">
       <canvas id="scene" aria-hidden="true"></canvas>
       <canvas id="type-layer" aria-hidden="true"></canvas>
+      <canvas id="motion-type-layer" aria-hidden="true"></canvas>
       <div class="grain" aria-hidden="true"></div>
       <h1 id="fallback">SPCTIME</h1>
       <p class="sr-only">SPCTIME. Drag or tap the letters to move them. Press Space to scatter them; press Escape to reset. Animation respects your reduced motion setting.</p>
