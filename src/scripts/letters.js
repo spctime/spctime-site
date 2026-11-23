@@ -18,12 +18,14 @@ if (!backgroundCtx || !typeCtx || !stage) {
   const expandedOrder = [letters[0], letters[1], hiddenLetters[0], letters[2], hiddenLetters[1], letters[3], letters[4], letters[5], letters[6]];
   let compactPositions = [], expandedPositions = [], expandedFontScale = 1;
   let revealStart = 0, lastInteraction = performance.now(), revealAmount = 0;
+  let hoverReveal = 0, lastPointerMotion = 0, pointerInside = false;
   const revealDelay = 9000, revealDuration = 4700, revealCooldown = 19000;
   const ease = x => { const v = clamp(x,0,1); return v*v*(3-2*v); };
   function interruptReveal() {
     lastInteraction = performance.now();
     revealStart = 0;
     revealAmount = 0;
+    hoverReveal = 0;
     positionForReveal(0);
   }
   function positionForReveal(amount) {
@@ -123,7 +125,13 @@ if (!backgroundCtx || !typeCtx || !stage) {
     else ripple(pointer.x,pointer.y,.6);
   });
   stage.addEventListener('pointermove',e=>{
-    if (Math.hypot(e.movementX||0,e.movementY||0)>2) { lastInteraction=performance.now(); if(revealStart) interruptReveal(); }
+    pointerInside = true;
+    const moved = Math.hypot(e.movementX||0,e.movementY||0);
+    if (moved > 2) {
+      lastPointerMotion = performance.now();
+      lastInteraction = lastPointerMotion;
+      if (revealStart) interruptReveal();
+    }
     if(pointer.down&&Math.hypot(e.movementX||0,e.movementY||0)>1)pointer.moved=true;
     updatePointer(e);
     if(pointer.dragging){ const p=pointer.dragging; p.vx=(pointer.x-p.x)*.28; p.vy=(pointer.y-p.y)*.28; p.x=pointer.x;p.y=pointer.y; }
@@ -147,7 +155,7 @@ if (!backgroundCtx || !typeCtx || !stage) {
   }
   stage.addEventListener('pointerup',release);
   stage.addEventListener('pointercancel',release);
-  stage.addEventListener('pointerleave',()=>{if(!pointer.down)pointer.x=pointer.y=-9999;});
+  stage.addEventListener('pointerleave',()=>{pointerInside=false;if(!pointer.down)pointer.x=pointer.y=-9999;});
   window.addEventListener('keydown',e=>{
     if(e.code==='Space'){ e.preventDefault();scatter(); }
     if(e.code==='Escape'){reset();}
@@ -214,12 +222,31 @@ if (!backgroundCtx || !typeCtx || !stage) {
       revealStart = t;
       lastInteraction = t + revealCooldown;
     }
+    // When someone explores the word, the missing A and E make shy attempts
+    // to occupy their gaps. They never fully spell the phrase on hover.
+    // The existing rare idle reveal remains the only complete transformation.
+    let hovered = 0;
+    if (gentle && pointerInside && !pointer.down && !pointer.dragging && !revealStart) {
+      const nearWord = Math.abs(pointer.y-H/2) < font*1.75;
+      const left = compactPositions[7]?.x ?? W/2;
+      const right = compactPositions[8]?.x ?? W/2;
+      const distance = Math.min(Math.abs(pointer.x-left),Math.abs(pointer.x-right));
+      const proximity = clamp(1-distance/(font*2.8),0,1);
+      const freshness = clamp(1-(t-lastPointerMotion)/2000,0,1);
+      hovered = nearWord ? proximity*freshness : 0;
+    }
+    hoverReveal += (hovered*.58-hoverReveal)*Math.min(1,dt*.065);
     if (revealStart) {
       const elapsed = t - revealStart;
       const opening = ease(elapsed / 1250);
       const closing = 1-ease((elapsed-3150)/1550);
       positionForReveal(Math.max(0,Math.min(opening,closing)));
       if (elapsed >= revealDuration) { revealStart=0;positionForReveal(0);lastInteraction=t; }
+    } else {
+      // A faint asymmetric oscillation gives the impression of two letters
+      // independently testing whether the word will make room for them.
+      const pulse = hoverReveal > .025 ? Math.sin(t*.0035)*.025*hoverReveal : 0;
+      positionForReveal(Math.max(0,hoverReveal+pulse));
     }
     ctx.fillStyle='#080a0b';ctx.fillRect(0,0,W,H);
     // A quiet vignette. The letterforms do all the work.
