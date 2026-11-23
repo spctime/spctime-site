@@ -1,4 +1,4 @@
-/* SPCTIME: an interactive kinetic wordmark, no external animation dependencies. */
+/* space.time: an interactive kinetic wordmark, no external animation dependencies. */
 const stage = document.querySelector('#stage');
 const canvas = document.querySelector('#scene');
 const fallback = document.querySelector('#fallback');
@@ -11,35 +11,11 @@ let ctx = backgroundCtx;
 if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
   if (fallback) fallback.style.display = 'flex';
 } else {
-  const glyphs = [...'SPCTIME'];
+  const glyphs = [...'space.time'];
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
   const letters = glyphs.map((char, i) => ({ char, i, x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0, a: 0, va: 0, trail: [] }));
-  // Two letters emerge from the existing word during the occasional reveal.
-  const hiddenLetters = ['A', 'E'].map((char, i) => ({ char, i: 7+i, x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0, a: 0, va: 0, trail: [] }));
-  const allLetters = [...letters, ...hiddenLetters];
-  const expandedOrder = [letters[0], letters[1], hiddenLetters[0], letters[2], hiddenLetters[1], letters[3], letters[4], letters[5], letters[6]];
-  let compactPositions = [], expandedPositions = [], expandedFontScale = 1;
-  let revealStart = 0, lastInteraction = performance.now(), revealAmount = 0;
-  let hoverReveal = 0, lastPointerMotion = 0, pointerInside = false;
-  let motionBlur = 0, motionEnergy = 0;
-  const revealDelay = 9000, revealDuration = 4700, revealCooldown = 19000;
-  const ease = x => { const v = clamp(x,0,1); return v*v*(3-2*v); };
-  function interruptReveal() {
-    lastInteraction = performance.now();
-    revealStart = 0;
-    revealAmount = 0;
-    hoverReveal = 0;
-    positionForReveal(0);
-  }
-  function positionForReveal(amount) {
-    revealAmount = amount;
-    allLetters.forEach(p => {
-      const a = compactPositions[p.i], b = expandedPositions[p.i];
-      if (!a || !b) return;
-      p.tx = a.x + (b.x-a.x)*amount;
-      p.ty = H/2;
-    });
-  }
+  // The full wordmark is always visible; every glyph is an independent object.
+  let motionBlur = 0, motionEnergy = 0, pointerInside = false;
   const pointer = { x: -9999, y: -9999, px: 0, py: 0, down: false, dragging: null, id: null, moved: false, t: 0 };
   const ripples = [];
   let W = 0, H = 0, font = 100, gap = 100, raf = null, last = 0, tick = 0, anomaly = 0;
@@ -57,50 +33,30 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
     typeCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     motionCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx = backgroundCtx;
-    font = clamp(W / 7.4, 36, Math.min(202, H * .31));
+    font = clamp(W / 10.2, 28, Math.min(180, H * .31));
     ctx.font = `900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
     const widths = letters.map(p => ctx.measureText(p.char).width);
-    const wordWidth = widths.reduce((a,b) => a+b,0);
-    const usable = Math.min(W*.88, wordWidth + font*.34);
-    const scale = Math.min(1, usable / (wordWidth + font*.34));
-    font *= scale;
-    // CSS filters soften the complete type layer even when canvas ctx.filter is unsupported.
-    typeCanvas.style.filter = `blur(${clamp(font * .038, 3.7, 7.5)}px)`;
+    const totalWidth = widths.reduce((a,b)=>a+b,0) + (letters.length-1)*font*.03 + font*.11;
+    font *= Math.min(1, (W*.89)/totalWidth);
+    const baseBlur = clamp(font*.038, 3.7, 7.5);
+    typeCanvas.style.filter = `blur(${baseBlur}px)`;
     motionCanvas.style.filter = typeCanvas.style.filter;
     ctx.font = `900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
-    const newWidths = letters.map(p => ctx.measureText(p.char).width);
-    const total = newWidths.reduce((a,b)=>a+b,0) + (letters.length-1)*font*.045;
-    let cursor = (W-total)/2;
-    compactPositions = [];
-    letters.forEach((p,i) => {
-      compactPositions[p.i] = { x: cursor + newWidths[i]/2 };
-      cursor += newWidths[i] + font*.045;
-    });
-    // The full phrase is fitted within the viewport, independently of SPCTIME.
-    const wideWidths = expandedOrder.map(p => ctx.measureText(p.char).width);
-    const wideNatural = wideWidths.reduce((a,b)=>a+b,0) + font*.045*7 + font*.26;
-    expandedFontScale = Math.min(1, W*.90 / wideNatural);
-    const wideScaled = wideWidths.map(w => w*expandedFontScale);
-    const wideTotal = wideScaled.reduce((a,b)=>a+b,0) + font*.045*expandedFontScale*7 + font*.26*expandedFontScale;
-    cursor = (W-wideTotal)/2;
-    expandedPositions = [];
-    expandedOrder.forEach((p,i) => {
-      expandedPositions[p.i] = { x: cursor + wideScaled[i]/2 };
-      cursor += wideScaled[i] + font*.045*expandedFontScale;
-      if (i===4) cursor += font*.26*expandedFontScale;
-    });
-    compactPositions[7] = { x: (compactPositions[1].x + compactPositions[2].x)/2 };
-    compactPositions[8] = { x: (compactPositions[2].x + compactPositions[3].x)/2 };
-    positionForReveal(revealAmount);
-    allLetters.forEach(p => {
-      if (reset || p.x === 0) { p.x=p.tx; p.y=p.ty; p.vx=p.vy=p.va=p.a=0; p.trail=[]; }
+    const fittedWidths = letters.map(p => ctx.measureText(p.char).width);
+    const total = fittedWidths.reduce((a,b)=>a+b,0) + (letters.length-1)*font*.03 + font*.11;
+    let cursor=(W-total)/2;
+    letters.forEach((p,i)=>{
+      const width=fittedWidths[i];
+      p.tx=cursor+width/2;
+      p.ty=H/2;
+      cursor+=width+font*.03+(i===5?font*.11:0);
+      if(reset || p.x === 0){p.x=p.tx;p.y=p.ty;p.vx=p.vy=p.va=p.a=0;p.trail=[];}
     });
   }
 
   const color = (a) => `rgba(209,215,231,${a})`;
   function ripple(x,y,power=1) { if (!reduced.matches) ripples.push({x,y,r:0,power,life:1}); }
   function scatter(force = 1.0) {
-    interruptReveal();
     if (reduced.matches) return;
     letters.forEach((p,i) => {
       const angle = rand()*Math.PI*2;
@@ -111,7 +67,7 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
     });
     ripple(W/2,H/2,force);
   }
-  function reset() { interruptReveal(); allLetters.forEach(p => {p.vx=p.vy=p.va=p.a=0;p.x=p.tx;p.y=p.ty;p.trail=[];});ripples.length=0; }
+  function reset() { letters.forEach(p => {p.vx=p.vy=p.va=p.a=0;p.x=p.tx;p.y=p.ty;p.trail=[];});ripples.length=0; }
   function hit(x,y) {
     ctx.font = `900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
     for (let i=letters.length-1; i>=0; i--) {
@@ -122,7 +78,6 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
   }
   function updatePointer(e) { const b = stage.getBoundingClientRect();pointer.px=pointer.x;pointer.py=pointer.y;pointer.x=e.clientX-b.left;pointer.y=e.clientY-b.top; }
   stage.addEventListener('pointerdown',e=>{
-    interruptReveal();
     updatePointer(e); pointer.down=true;pointer.moved=false;pointer.t=performance.now();pointer.id=e.pointerId;
     const picked=hit(pointer.x,pointer.y);
     pointer.dragging = reduced.matches ? null : picked;
@@ -133,10 +88,7 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
     pointerInside = true;
     const moved = Math.hypot(e.movementX||0,e.movementY||0);
     if (moved > 2) {
-      motionEnergy = Math.max(motionEnergy, clamp(moved / 17, .2, 1));
-      lastPointerMotion = performance.now();
-      lastInteraction = lastPointerMotion;
-      if (revealStart) interruptReveal();
+      motionEnergy = Math.max(motionEnergy, clamp(moved/17,.2,1));
     }
     if(pointer.down&&Math.hypot(e.movementX||0,e.movementY||0)>1)pointer.moved=true;
     updatePointer(e);
@@ -226,44 +178,13 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
     const baseBlur = clamp(font * .038, 3.7, 7.5);
     motionEnergy *= Math.pow(.94, dt);
     const proximity = pointerInside ? Math.max(0,1-Math.min(
-      Math.hypot(pointer.x-letters[4].x,pointer.y-letters[4].y),
-      Math.hypot(pointer.x-letters[6].x,pointer.y-letters[6].y)
+      Math.hypot(pointer.x-letters[7].x,pointer.y-letters[7].y),
+      Math.hypot(pointer.x-letters[9].x,pointer.y-letters[9].y)
     ) / (font*2.8)) : 0;
     const targetMotionBlur = reduced.matches ? 0 : motionEnergy * (.45 + .55 * proximity);
     motionBlur += (targetMotionBlur-motionBlur) * Math.min(1, .12*dt);
     motionCanvas.style.filter = `blur(${(baseBlur + motionBlur * Math.min(19, font*.13)).toFixed(2)}px)`;
     const gentle = !reduced.matches;
-    // A quiet, infrequent discovery: SPCTIME unfolds to SPACE TIME and returns.
-    if (gentle && !pointer.down && !revealStart && t-lastInteraction>revealDelay) {
-      revealStart = t;
-      lastInteraction = t + revealCooldown;
-    }
-    // When someone explores the word, the missing A and E make shy attempts
-    // to occupy their gaps. They never fully spell the phrase on hover.
-    // The existing rare idle reveal remains the only complete transformation.
-    let hovered = 0;
-    if (gentle && pointerInside && !pointer.down && !pointer.dragging && !revealStart) {
-      const nearWord = Math.abs(pointer.y-H/2) < font*1.75;
-      const left = compactPositions[7]?.x ?? W/2;
-      const right = compactPositions[8]?.x ?? W/2;
-      const distance = Math.min(Math.abs(pointer.x-left),Math.abs(pointer.x-right));
-      const proximity = clamp(1-distance/(font*2.8),0,1);
-      const freshness = clamp(1-(t-lastPointerMotion)/2000,0,1);
-      hovered = nearWord ? proximity*freshness : 0;
-    }
-    hoverReveal += (hovered*.58-hoverReveal)*Math.min(1,dt*.065);
-    if (revealStart) {
-      const elapsed = t - revealStart;
-      const opening = ease(elapsed / 1250);
-      const closing = 1-ease((elapsed-3150)/1550);
-      positionForReveal(Math.max(0,Math.min(opening,closing)));
-      if (elapsed >= revealDuration) { revealStart=0;positionForReveal(0);lastInteraction=t; }
-    } else {
-      // A faint asymmetric oscillation gives the impression of two letters
-      // independently testing whether the word will make room for them.
-      const pulse = hoverReveal > .025 ? Math.sin(t*.0035)*.025*hoverReveal : 0;
-      positionForReveal(Math.max(0,hoverReveal+pulse));
-    }
     ctx.fillStyle='#080a0b';ctx.fillRect(0,0,W,H);
     // A quiet vignette. The letterforms do all the work.
     const grad=ctx.createRadialGradient(W/2,H/2,0,W/2,H/2,Math.max(W,H)*.74);
@@ -288,10 +209,9 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
     ctx = typeCtx;
     ctx.textAlign='center';ctx.textBaseline='middle';
     ctx.font=`900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
-    for(const p of allLetters){
-      // Only the original I and terminal E in TIME gain additional softness.
-      // The new E that appears in SPACE retains the regular wordmark blur.
-      ctx = (p.i === 4 || p.i === 6) ? motionCtx : typeCtx;
+    for(const p of letters){
+      // I and final E in TIME react to pointer movement.
+      ctx = (p.i === 7 || p.i === 9) ? motionCtx : typeCtx;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.font = `900 ${font}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
@@ -313,12 +233,7 @@ if (!backgroundCtx || !typeCtx || !motionCtx || !stage) {
         ctx.fillStyle=color(echo.life*.23);ctx.fillText(p.char,0,0);ctx.restore();
       }
       if(p.trail.length>24)p.trail.splice(0,p.trail.length-24);
-      // The two added glyphs bloom into existence from the original gaps.
-      if (p.i >= 7 && revealAmount <= 0.003) continue;
       ctx.save();ctx.translate(p.x,p.y);ctx.rotate(gentle?p.a:0);
-      if (p.i >= 7) ctx.globalAlpha = ease(revealAmount);
-      const glyphScale = 1-(1-expandedFontScale)*revealAmount;
-      ctx.scale(glyphScale,glyphScale);
       // Blur the letterforms themselves, rather than placing sharp glyphs over a glow.
       // Both passes stay soft: a faint atmospheric halo and a dense blurred core.
       const softness = clamp(font * .032, 2.6, 6.4);
